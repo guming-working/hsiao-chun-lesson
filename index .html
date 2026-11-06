@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#173b35">
+<title>產品報價單</title>
+<style>
+:root{--ink:#20312d;--muted:#71817b;--line:#dce5e0;--bg:#f3f6f4;--brand:#173b35;--accent:#d8f078;--danger:#b42318}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Noto Sans TC",sans-serif}
+header{background:var(--brand);color:white;padding:22px max(18px,calc((100% - 1050px)/2))}
+header h1{margin:0;font-size:22px}header p{margin:5px 0 0;color:#d2dfd9;font-size:13px}
+main{max-width:1050px;margin:24px auto;padding:0 18px 110px}.panel{background:white;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 4px 18px #183b3510}
+h2{font-size:17px;margin:0 0 16px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted);font-weight:650}
+input,select{width:100%;min-width:0;border:1px solid #cbd7d1;border-radius:10px;padding:11px 12px;font:inherit;background:white;color:var(--ink)}
+input[readonly]{background:#f5f7f6;color:#53645d}.hint{font-size:12px;color:var(--muted);margin-top:10px}
+.product-row{display:grid;grid-template-columns:1.1fr 1.1fr 1.5fr .65fr .8fr .8fr auto;gap:9px;align-items:end;padding:13px 0;border-bottom:1px solid var(--line)}
+.product-row:last-child{border-bottom:0}.product-row .field label{font-size:11px}.remove{border:0;background:#fff0ef;color:var(--danger);border-radius:9px;padding:11px;cursor:pointer}
+button{font:inherit;cursor:pointer;border:0;border-radius:11px;padding:12px 16px;font-weight:700}
+.secondary{background:#edf3ef;color:var(--brand);border:1px solid var(--line)}.primary{background:var(--accent);color:#20312d}.primary:disabled,.secondary:disabled{opacity:.4;cursor:not-allowed}
+.error{display:none;color:var(--danger);background:#fff1f0;border:1px solid #ffd1cd;padding:12px;border-radius:10px;margin-top:12px;font-size:13px}
+.status{font-size:13px;color:var(--muted)}.totals{margin-left:auto;max-width:340px}.total-line{display:flex;justify-content:space-between;padding:6px 0}.grand{border-top:1px solid var(--line);margin-top:6px;padding-top:12px;font-size:19px;font-weight:800}
+.quote-preview{display:none}.quote-preview table{width:100%;border-collapse:collapse;font-size:13px}.quote-preview th,.quote-preview td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:left}.quote-preview th{background:#f3f6f4}
+.actions{position:fixed;z-index:5;bottom:0;left:0;right:0;background:#ffffffed;backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:12px max(18px,calc((100% - 1014px)/2));display:flex;gap:10px;justify-content:flex-end}
+.actions button{min-width:150px}
+@media(max-width:700px){main{margin:14px auto;padding:0 12px 125px}.panel{padding:16px;border-radius:14px}.grid{grid-template-columns:1fr}.product-row{grid-template-columns:1fr 1fr;gap:10px;background:#f8faf8;border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}.product-row .field:nth-child(3){grid-column:1/-1}.product-row .remove{grid-column:1/-1}.actions{padding:10px 12px}.actions button{min-width:0;flex:1;padding:12px 8px;font-size:14px}}
+@media print{body{background:white}header,.no-print,.actions{display:none!important}main{max-width:none;margin:0;padding:0}.panel{box-shadow:none;border:0;padding:0}.quote-preview{display:block!important}}
+</style>
+</head>
+<body>
+<header><h1>產品報價單</h1><p>即時讀取產品資料・自動計算 5% 營業稅</p></header>
+<main>
+<section class="panel">
+<h2>報價資訊</h2>
+<div class="grid">
+<div class="field"><label for="customer">客戶名稱</label><input id="customer" placeholder="請輸入客戶名稱"></div>
+<div class="field"><label for="quoteDate">報價日期</label><input id="quoteDate" type="date"></div>
+</div>
+<div class="hint">產品資料來源：Google 試算表（開啟時即時讀取）</div>
+<div id="status" class="status" aria-live="polite">正在讀取產品資料…</div>
+<div id="error" class="error" role="alert"></div>
+</section>
+<section class="panel no-print">
+<h2>選擇報價品項</h2>
+<div id="items"></div>
+<button class="secondary" id="addBtn" type="button" disabled>＋ 新增品項</button>
+</section>
+<section class="panel quote-preview" id="preview">
+<h2>報價單</h2><div id="previewInfo"></div>
+<table><thead><tr><th>類別</th><th>編號</th><th>品名</th><th>單位</th><th>數量</th><th>單價</th><th>小計</th></tr></thead><tbody id="previewRows"></tbody></table>
+<div class="totals"><div class="total-line"><span>未稅小計</span><strong id="subtotal"></strong></div><div class="total-line"><span>營業稅（5%）</span><strong id="tax"></strong></div><div class="total-line grand"><span>含稅總計</span><strong id="grand"></strong></div></div>
+</section>
+</main>
+<div class="actions no-print"><button class="secondary" id="pdfBtn" disabled>下載 PDF</button><button class="primary" id="makeBtn" disabled>產生報價單</button></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script>
+/* 請將下方 SPREADSHEET_ID 換成 Google 試算表網址中 /d/ 與 /edit 之間的 ID。
+   「product老師範本」若是檔案名稱，並不是試算表 ID。 */
+const SPREADSHEET_ID = "1FqY_BkFdAOBfUV4neMxk7WHbe8rvK1WVJVmpB12nLEw";
+const SHEET_NAME = ""; // 留空讀取第一個工作表；若有指定分頁，填入分頁名稱
+const TAX_RATE = 0.05;
+let products = [], rows = [];
+const $ = id => document.getElementById(id);
+const money = n => new Intl.NumberFormat("zh-TW",{style:"currency",currency:"TWD",maximumFractionDigits:0}).format(n);
+$("quoteDate").value = new Date().toLocaleDateString("en-CA");
+
+function setError(message){
+  $("error").textContent = message; $("error").style.display = "block";
+  $("status").textContent = "產品資料讀取失敗；請修正設定後重新整理頁面。";
+  $("addBtn").disabled = $("makeBtn").disabled = $("pdfBtn").disabled = true;
+}
+function loadProducts(){
+  if(!SPREADSHEET_ID || SPREADSHEET_ID.includes("請填入")){
+    setError("尚未設定 Google 試算表 ID。請把程式中的 SPREADSHEET_ID 換成試算表網址 /d/ 和 /edit 之間的代碼。");
+    return;
+  }
+  const callback = "gvizCallback";
+  window[callback] = response => {
+    try{
+      if(!response || response.status !== "ok") throw new Error(response?.errors?.[0]?.message || "Google 試算表回傳錯誤");
+      const table = response.table, headers = table.cols.map(c => String(c.label || c.id || "").trim().toLowerCase());
+      const required = ["type","pno","pname","unit","price"];
+      const indexes = Object.fromEntries(required.map(k => [k, headers.indexOf(k)]));
+      const missing = required.filter(k => indexes[k] < 0);
+      if(missing.length) throw new Error("找不到必要欄位：" + missing.join(", "));
+      products = table.rows.map(r => {
+        const v = k => r.c[indexes[k]]?.v ?? "";
+        return {type:String(v("type")).trim(),pno:String(v("pno")).trim(),pname:String(v("pname")).trim(),unit:String(v("unit")).trim(),price:Number(v("price"))};
+      }).filter(p => p.type && p.pno && p.pname && Number.isFinite(p.price));
+      if(!products.length) throw new Error("試算表沒有可用的產品資料，請確認欄位與內容。");
+      $("status").textContent = `已載入 ${products.length} 筆產品資料`;
+      $("error").style.display = "none";
+      $("addBtn").disabled = $("makeBtn").disabled = false;
+      addRow();
+    }catch(e){setError(e.message || "資料格式錯誤");}
+    finally{delete window[callback];}
+  };
+  const tq = "select *";
+  const params = new URLSearchParams({tq, tqx:"out:json;responseHandler:"+callback});
+  if(SHEET_NAME) params.set("sheet", SHEET_NAME);
+  const script = document.createElement("script");
+  script.src = `https://docs.google.com/spreadsheets/d/${encodeURIComponent(SPREADSHEET_ID)}/gviz/tq?${params.toString()}`;
+  script.onerror = () => {delete window[callback];setError("無法連線至 Google 試算表。請確認試算表 ID、網路連線及「知道連結的任何人可檢視」權限。");};
+  document.head.appendChild(script);
+  setTimeout(()=>{if(window[callback]){delete window[callback];setError("讀取逾時。請確認試算表 ID、分頁名稱及分享權限。");}},15000);
+}
+function addRow(){
+  const id = crypto.randomUUID();
+  rows.push({id,type:"",pno:"",qty:1});
+  renderRows();
+}
+function renderRows(){
+  const host=$("items"); host.innerHTML="";
+  rows.forEach((item,index)=>{
+    const card=document.createElement("div");card.className="product-row";
+    card.innerHTML=`
+      <div class="field"><label>類別</label><select data-k="type"><option value="">選擇類別</option></select></div>
+      <div class="field"><label>產品編號</label><select data-k="pno" disabled><option value="">先選類別</option></select></div>
+      <div class="field"><label>品名</label><input data-k="pname" readonly placeholder="自動帶入"></div>
+      <div class="field"><label>單位</label><input data-k="unit" readonly placeholder="—"></div>
+      <div class="field"><label>單價</label><input data-k="price" readonly placeholder="—"></div>
+      <div class="field"><label>數量（0 刪除）</label><input data-k="qty" type="number" min="0" step="1" value="${item.qty}"></div>
+      <button class="remove" type="button" aria-label="刪除品項">刪除</button>`;
+    const typeSel=card.querySelector('[data-k="type"]'), pnoSel=card.querySelector('[data-k="pno"]');
+    [...new Set(products.map(p=>p.type))].sort().forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=t;typeSel.append(o);});
+    typeSel.value=item.type;
+    function fillPnos(){
+      pnoSel.innerHTML='<option value="">選擇編號</option>';
+      products.filter(p=>p.type===item.type).forEach(p=>{const o=document.createElement("option");o.value=p.pno;o.textContent=p.pno;pnoSel.append(o);});
+      pnoSel.disabled=!item.type;pnoSel.value=item.pno;
+      updateDetails();
+    }
+    function updateDetails(){
+      const p=products.find(p=>p.type===item.type&&p.pno===item.pno);
+      card.querySelector('[data-k="pname"]').value=p?.pname||"";
+      card.querySelector('[data-k="unit"]').value=p?.unit||"";
+      card.querySelector('[data-k="price"]').value=p?money(p.price):"";
+    }
+    typeSel.addEventListener("change",()=>{item.type=typeSel.value;item.pno="";fillPnos();});
+    pnoSel.addEventListener("change",()=>{item.pno=pnoSel.value;updateDetails();});
+    card.querySelector('[data-k="qty"]').addEventListener("change",e=>{
+      const q=Math.max(0,Number(e.target.value)||0);
+      if(q===0){rows=rows.filter(r=>r.id!==item.id);renderRows();}
+      else{item.qty=q;e.target.value=q;}
+    });
+    card.querySelector(".remove").addEventListener("click",()=>{rows=rows.filter(r=>r.id!==item.id);renderRows();});
+    host.append(card);fillPnos();
+  });
+}
+function getQuote(){
+  const lines=rows.map(r=>{const p=products.find(p=>p.type===r.type&&p.pno===r.pno);return p?{...p,qty:r.qty,amount:p.price*r.qty}:null;}).filter(Boolean);
+  const subtotal=lines.reduce((s,l)=>s+l.amount,0),tax=Math.round(subtotal*TAX_RATE),total=subtotal+tax;
+  return {lines,subtotal,tax,total};
+}
+function makeQuote(){
+  const q=getQuote();
+  if(!q.lines.length){alert("請至少選擇一項產品。");return false;}
+  if(!$("customer").value.trim()){alert("請先輸入客戶名稱。");$("customer").focus();return false;}
+  $("previewInfo").textContent=`客戶名稱：${$("customer").value.trim()}　　報價日期：${$("quoteDate").value}`;
+  $("previewRows").innerHTML=q.lines.map(l=>`<tr><td>${esc(l.type)}</td><td>${esc(l.pno)}</td><td>${esc(l.pname)}</td><td>${esc(l.unit)}</td><td>${l.qty}</td><td>${money(l.price)}</td><td>${money(l.amount)}</td></tr>`).join("");
+  $("subtotal").textContent=money(q.subtotal);$("tax").textContent=money(q.tax);$("grand").textContent=money(q.total);
+  $("preview").style.display="block";$("pdfBtn").disabled=false;
+  $("preview").scrollIntoView({behavior:"smooth",block:"start"});return true;
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function filename(){const d=$("quoteDate").value||new Date().toLocaleDateString("en-CA");const c=$("customer").value.trim().replace(/[\\/:*?"<>|]/g,"_");return `報價單_${c}_${d}.pdf`;}
+async function downloadPdf(){
+  if(!$("preview").style.display||$("preview").style.display==="none"){if(!makeQuote())return;}
+  if(!window.html2pdf){alert("PDF 元件載入失敗，請確認網路連線後重試。");return;}
+  const q=getQuote();
+  const printable=document.createElement("div");
+  printable.style.cssText="font-family:Arial,'Noto Sans TC',sans-serif;color:#20312d;background:#fff;padding:24px;width:760px";
+  printable.innerHTML=`
+    <h1 style="font-size:25px;margin:0 0 18px">報價單</h1>
+    <p style="margin:0 0 20px">客戶名稱：${esc($("customer").value.trim())}　　報價日期：${esc($("quoteDate").value)}</p>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr>${["類別","編號","品名","單位","數量","單價","小計"].map(x=>`<th style="background:#edf3ef;padding:9px 6px;border:1px solid #ccd8d1;text-align:left">${x}</th>`).join("")}</tr></thead>
+      <tbody>${q.lines.map(l=>`<tr>${[l.type,l.pno,l.pname,l.unit,l.qty,money(l.price),money(l.amount)].map(x=>`<td style="padding:9px 6px;border:1px solid #dce5e0">${esc(x)}</td>`).join("")}</tr>`).join("")}</tbody>
+    </table>
+    <div style="width:270px;margin:22px 0 0 auto;font-size:13px">
+      <p>未稅小計：<b>${money(q.subtotal)}</b></p><p>營業稅（5%）：<b>${money(q.tax)}</b></p>
+      <p style="font-size:18px;border-top:1px solid #ccd8d1;padding-top:12px">含稅總計：<b>${money(q.total)}</b></p>
+    </div>`;
+  document.body.appendChild(printable);
+  try{
+    const options={margin:10,filename:filename(),image:{type:"jpeg",quality:0.98},html2canvas:{scale:2,useCORS:true},jsPDF:{unit:"mm",format:"a4",orientation:"landscape"}};
+    const worker=html2pdf().set(options).from(printable).toPdf();
+    const blob=await worker.output("blob");
+    const file=new File([blob],filename(),{type:"application/pdf"});
+    if(navigator.canShare?.({files:[file]})&&navigator.share){
+      try{await navigator.share({files:[file],title:"報價單"});return;}
+      catch(e){if(e.name==="AbortError")return;}
+    }
+    const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=filename();a.click();URL.revokeObjectURL(url);
+  }catch(e){alert("PDF 產生失敗，請稍後再試。");}
+  finally{printable.remove();}
+}
+$("addBtn").addEventListener("click",addRow);
+$("makeBtn").addEventListener("click",makeQuote);
+$("pdfBtn").addEventListener("click",downloadPdf);
+loadProducts();
+</script>
+</body>
+</html>
